@@ -43,6 +43,13 @@ int main()
 
 	char fb[WIDTH][HEIGHT]; //frame buffer
 
+	for (int i = 0; i < WIDTH; i++) {
+		for (int j = 0; j < HEIGHT; j++) {
+			fb[j][i] = ' ';
+		}
+	}
+
+
 	int rad = abs(vertices[0].x - vertices[1].x) + abs(vertices[0].y - vertices[1].y);
 	int octLen = std::ceilf(std::sinf(PI / 4) * rad); // gets the number of pixles in an octet
 	vector<Vertex> octant(octLen);
@@ -103,12 +110,11 @@ int main()
 	}
 	for (short i = HEIGHT - 1; i > -1; i--) { //print framebuffer
 		for (short j = 0; j < WIDTH; j++) {
-			cout << fb[j][i];
+			results << fb[j][i];
 		}
-		cout << endl;
+		results << endl;
 	}
 
 	results.close();
-
 
 }
