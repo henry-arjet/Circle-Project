@@ -4,9 +4,11 @@
 #include <math.h>
 #include <string>
 #include <BMP.h>
+#include <glm/glm.hpp>
 
 
-#define WIDTH 100 //framebuffer size
+
+#define WIDTH 100 //framebuffer size.    depreciated.
 #define HEIGHT 100
 #define PI 3.14159265
 
@@ -16,6 +18,9 @@ using std::cout;
 using std::endl;
 using std::string;
 using std::to_string;
+using glm::vec2;
+using glm::normalize;
+using glm::dot;
 
 struct Vertex {
 	Vertex(short ix = 0, short  iy = 0) {
@@ -106,7 +111,7 @@ public:
 		rad = abs(vertices[0].x - vertices[1].x) + abs(vertices[0].y - vertices[1].y);
 		octLen = std::ceil(std::sinf(PI / 4) * rad); // gets the number of pixles in an octet
 		octant.resize(octLen+1);
-		//using midpoint algorithm
+		//using Bresenham's algorithm
 		//octant from pi/2 -> pi/4
 		short x = 0;
 		short y = rad;
@@ -180,6 +185,77 @@ public:
 	vector<Vertex> quadrant;
 	EllipseRasta(uint16_t width, uint16_t height) : Rasterizer(width, height) {
 	};
+	void drawOutlineZingl(Vertex vertices[3]) {
+
+		//using modified Zingl algorithm
+
+		vec2 dist1 = vec2(vertices[1].x - vertices[0].x, vertices[1].y - vertices[0].y);
+		float a = glm::length(dist1);
+		float a2 = a * a;
+		vec2 ei = dist1 / a; //unit vector of i
+		vec2 dist2 = vec2(vertices[2].x - vertices[0].x, vertices[2].y - vertices[0].y);
+		float b = glm::length(dist2);
+		float b2 = b * b;
+		vec2 ej = dist2 / b; //unit vector of j
+		int ellLingth = ceil(2 * a + 2 * b);
+		vector<vec2>ellipse(ellLingth);
+		
+		//elipse b2 i2 + a2 j2 = b2 a2
+		//scalar proj = a dot b /||b||
+		//vector proj = (a dot b) * b/(b dot b)
+
+
+		//midpoint = vec2(x,y)
+		//i = mp dot ei
+		//j = mp dot ej
+		//d = b2i2 + a2j2 - b2a2
+
+		//e = x2b2 + y2a2 - a2b2
+		//e = b2i2 + a2j2 - b2a2
+		//exy = (x+1)2b2 + (y+1)2a2 - a2b2 =(i + ei dot 1x)
+		//yeah fuck it just brute force it
+		//start at v2, look in from top-right to left
+		short index = 0;
+		string dir = "tr"; //holds the current direction
+		ellipse[0] = vec2(vertices[1].x, vertices[1].y);
+		float i = dot(ellipse[0], ei);
+		float i2 = i * i;
+		float j = dot(ellipse[0], ej);
+		float j2 = j * j;
+		float etr = abs(b2 * pow(dot(vec2(ellipse[0].x+1, ellipse[0].y+1), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x + 1, ellipse[0].y + 1), ej), 2) - b2 * a2);
+		float et = abs(b2 * pow(dot(vec2(ellipse[0].x, ellipse[0].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[0], ellipse[0].y + 1), ej), 2) - b2 * a2);
+		float etl = abs(b2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y + 1), ej), 2) - b2 * a2);
+		float el = abs(b2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y), ej), 2) - b2 * a2);
+		float emin = etr;
+		if (et < emin) { emin = et; dir = "t"; }
+		if (etl < emin) { emin = etl; dir = "tl"; }
+		if (el < emin) { emin = el; dir = "l"; }
+		bool loop = true;
+		while (loop) {
+			index++;
+			if (dir == "tr")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y + 1); //should refactor
+			if (dir == "t")ellipse[i] = vec2(ellipse[i - 1].x, ellipse[i - 1].y + 1);
+			if (dir == "tl")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y + 1);
+			if (dir == "l")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y);
+			if (dir == "bl")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y - 1);
+			if (dir == "b")ellipse[i] = vec2(ellipse[i - 1].x, ellipse[i - 1].y - 1);
+			if (dir == "br")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y - 1);
+			if (dir == "r")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y);
+	
+		}
+
+
+
+		
+
+
+
+
+
+
+		
+	}
+
 	void drawOutlineKennedy(Vertex vertices[3]) {
 
 		short a = abs(vertices[0].x - vertices[1].x) + abs(vertices[0].y - vertices[1].y); //semi major

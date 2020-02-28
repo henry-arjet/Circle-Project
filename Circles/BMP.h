@@ -26,8 +26,8 @@ struct BMP {
 		uint16_t bitCount{ 0 }; //bits per pixel
 		uint32_t compression{ 0 };
 		uint32_t sizeImage{ 0 };
-		int32_t xPixelsPerInch{ 0 };
-		int32_t yPixelsPerInch{ 0 };
+		int32_t xPixelsPerMeter{ 0 };
+		int32_t yPixelsPerMeter{ 0 };
 		uint32_t colorsUsed{ 0 };
 		uint32_t colorsImportant{ 0 };
 	};
