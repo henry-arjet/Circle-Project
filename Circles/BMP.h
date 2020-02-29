@@ -5,7 +5,7 @@
 #include <math.h>
 #include <string>
 
-
+//copied most of this from an online tutorial
 
 
 struct BMP {

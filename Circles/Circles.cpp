@@ -6,8 +6,6 @@
 #include <BMP.h>
 #include <glm/glm.hpp>
 
-
-
 #define WIDTH 100 //framebuffer size.    depreciated.
 #define HEIGHT 100
 #define PI 3.14159265
@@ -35,9 +33,9 @@ struct Vertex {
 };
 
 Vertex vertices[] = {
-	{128, 128}, // midpoint
-	{190, 128}, // right side
-	{128, 134}, // top
+	{256, 256}, // midpoint
+	{367, 320}, // right side
+	{211, 334}, // top
 
 };
 
@@ -185,9 +183,30 @@ public:
 	vector<Vertex> quadrant;
 	EllipseRasta(uint16_t width, uint16_t height) : Rasterizer(width, height) {
 	};
+
+	float findSlope(vec2 ei, vec2 ej, vec2 ij, int a2, int b2, float &djdi) {
+		//takes unit vectors of i and j, ij coords of point, and squared coeficients
+		//returns dy/dx at point i,j
+
+		
+		if (ij.y == 0) { djdi = -1 * ij.x * 99999.0f; cout << "ij.y = 0\n"; } //this is a way to preserve the original sign
+		else djdi = (-1 * ij.x *b2) / (ij.y *a2); //if no div 0
+		//cout << "js: " << ij.y << endl;
+		vec2 projdj =  ej*djdi + ei * 1.0f; // projection of dj/di into x/y coords
+		cout << "djdi: " << djdi << endl;
+		float r;
+		cout << "projdj.x: " << projdj.x << endl;
+		cout << "projdj.y: " << projdj.y << endl;
+
+		if (projdj.x == 0) r = projdj.y * 99999.0f; //same pattern
+		else r = projdj.y / projdj.x; // dy/dx
+		return r;
+	}
+
 	void drawOutlineZingl(Vertex vertices[3]) {
 
 		//using modified Zingl algorithm
+		//breaks, J is off
 
 		vec2 dist1 = vec2(vertices[1].x - vertices[0].x, vertices[1].y - vertices[0].y);
 		float a = glm::length(dist1);
@@ -197,9 +216,13 @@ public:
 		float b = glm::length(dist2);
 		float b2 = b * b;
 		vec2 ej = dist2 / b; //unit vector of j
-		int ellLingth = ceil(2 * a + 2 * b);
-		vector<vec2>ellipse(ellLingth);
+		cout << ei.x << "   " << ei.y << endl;
+		cout << ej.x << "   " << ej.y << endl;
 		
+		int ellLength = ceil(5 * a + 5 * b); //because it draws some pixels twice, I want to give it a bit of padding
+		vector<vec2>ellipse(ellLength);
+		//vector<vec2>ellipse(16);
+
 		//elipse b2 i2 + a2 j2 = b2 a2
 		//scalar proj = a dot b /||b||
 		//vector proj = (a dot b) * b/(b dot b)
@@ -215,45 +238,197 @@ public:
 		//exy = (x+1)2b2 + (y+1)2a2 - a2b2 =(i + ei dot 1x)
 		//yeah fuck it just brute force it
 		//start at v2, look in from top-right to left
+
+		//actually fuck that. Use tangents.
+		//dj/dt = (ib2)/(ja2)
+
 		short index = 0;
 		string dir = "tr"; //holds the current direction
-		ellipse[0] = vec2(vertices[1].x, vertices[1].y);
-		float i = dot(ellipse[0], ei);
-		float i2 = i * i;
+		ellipse[0] = dist1; // fills in virst pixel as vertex 2 (i know, confusing name)
+		float i = dot(ellipse[0], ei); //i in xy coords
+		float i2 = i * i; //man I don't even remember why I needed these
 		float j = dot(ellipse[0], ej);
 		float j2 = j * j;
-		float etr = abs(b2 * pow(dot(vec2(ellipse[0].x+1, ellipse[0].y+1), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x + 1, ellipse[0].y + 1), ej), 2) - b2 * a2);
+		float djdi = 0.0f;//slope in djdi space
+		/*float etr = abs(b2 * pow(dot(vec2(ellipse[0].x+1, ellipse[0].y+1), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x + 1, ellipse[0].y + 1), ej), 2) - b2 * a2);
 		float et = abs(b2 * pow(dot(vec2(ellipse[0].x, ellipse[0].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[0], ellipse[0].y + 1), ej), 2) - b2 * a2);
 		float etl = abs(b2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y + 1), ej), 2) - b2 * a2);
 		float el = abs(b2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y), ei), 2) + a2 * pow(dot(vec2(ellipse[0].x - 1, ellipse[0].y), ej), 2) - b2 * a2);
 		float emin = etr;
 		if (et < emin) { emin = et; dir = "t"; }
 		if (etl < emin) { emin = etl; dir = "tl"; }
-		if (el < emin) { emin = el; dir = "l"; }
+		if (el < emin) { emin = el; dir = "l"; }*/
 		bool loop = true;
+		glm::mat2 xyij = glm::inverse(glm::mat2(ei, ej)); // change of basis matrix
+		vec2 ij = xyij * ellipse[0];
+		float m = findSlope(ei, ej, ij, a2, b2, djdi);
+		float djdi1 = djdi; //used to find stop
+		string pass = "p1"; //short value that says whether it moves with or against the slope.
+			//logs the sign of slope, and whether its the first pass or second with that sign
+		if (m < 0) pass = "n1";
+		string firstPass = pass; //used for stopping algorithm
+		char startingOct = 0; // these three statements are all used for stopping
+		bool leftStartingOct = false;
+		bool lastLap = false;
+		
 		while (loop) {
+			ij = xyij * ellipse[index];
+			m = findSlope(ei, ej, ij, a2, b2, djdi);
+			cout << "i: " << ij.x << endl;
+			cout << "j: " << ij.y << endl;
+			cout << "m: " << m << endl;
+			cout << "index: " << index << endl;
+			if (m < -1 && ij.y >= 0) { //octant I
+				cout << "octant I\n";
+				if (startingOct == 0) { startingOct = 1; }
+				else if (startingOct == 1) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float et = abs(b2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y + 1), ej), 2) - b2 * a2); //error of the pixle to the top of the current one
+				float etl = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y + 1), ej), 2) - b2 * a2);
+				//cout << "et: " << et << endl;
+				//cout << "etl: " << etl << endl;
+				
+				if (etl < et) dir = "tl"; // I should really replace these with enums. But whatevs
+				else dir = "t";
+				//now repeat this pattern 7 times. Joy.
+			} else if (m >= -1 && m < 0 && ij.y >= 0) { //octant II
+				if (startingOct == 0) { startingOct = 2; }
+				else if (startingOct == 2) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float etl = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y + 1), ej), 2) - b2 * a2);
+				float el = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y), ej), 2) - b2 * a2);
+				if (el < etl) dir = "l";
+				else dir = "tl";
+				//now repeat this pattern 6 times. Joy.
+			}
+			else if (m >= 0 && m < 1 && ij.y >= 0) { //octant III
+				if (startingOct == 0) { startingOct = 3; }
+				else if (startingOct == 3) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float el = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y), ej), 2) - b2 * a2);
+				float ebl = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y-1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y-1), ej), 2) - b2 * a2);
+
+				if (ebl < el) dir = "bl"; // I should really replace these with enums. But whatevs
+				else dir = "l";
+				//now repeat this pattern 5 times. Joy.
+			}
+			else if (m >= 1 && ij.y > 0) { //octant IV
+				if (startingOct == 0) { startingOct = 4; }
+				else if (startingOct == 4) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float ebl = abs(b2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y - 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x - 1, ellipse[index].y - 1), ej), 2) - b2 * a2);
+				float eb = abs(b2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y - 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y - 1), ej), 2) - b2 * a2);
+
+				if (eb < ebl) dir = "b"; // I should really replace these with enums. But whatevs
+				else dir = "bl";
+				//now repeat this pattern 4 times. Joy.
+			}
+			else if (m <= -1 && ij.y < 0) { //octant V
+				if (startingOct == 0) { startingOct = 5; }
+				else if (startingOct == 5) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float eb = abs(b2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y - 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y - 1), ej), 2) - b2 * a2);
+				float ebr = abs(b2 * pow(dot(vec2(ellipse[index].x+1, ellipse[index].y - 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x+1, ellipse[index].y - 1), ej), 2) - b2 * a2);
+
+				if (ebr < eb) dir = "br"; // I should really replace these with enums. But whatevs
+				else dir = "b";
+				//now repeat this pattern 3 times. I probably could have used a complex function. At this point, I don't care
+			}
+			else if (m < 0 && m >= -1 && ij.y < 0) { //octant VI
+				if (startingOct == 0) { startingOct = 6; }
+				else if (startingOct == 6) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float ebr = abs(b2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y - 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y - 1), ej), 2) - b2 * a2);
+				float er = abs(b2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y), ej), 2) - b2 * a2);
+				if (er < ebr) dir = "r"; // I should really replace these with enums. But whatevs
+				else dir = "br";
+				//now repeat this pattern twice
+			}
+			else if (m < 1 && m >= 0 &&ij.y < 0) { //octant VII
+				if (startingOct == 0) { startingOct = 7; }
+				else if (startingOct == 7) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float er = abs(b2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y), ej), 2) - b2 * a2);
+				float etr = abs(b2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y+1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y+1), ej), 2) - b2 * a2);
+				if (etr < er) dir = "tr"; // I should really replace these with enums. But whatevs
+				else dir = "r";
+			}//now repeat this pattern once more
+
+			else if (m > 1 && ij.y < 0) { //octant VIII
+				if (startingOct == 0) { startingOct = 8; }
+				else if (startingOct == 8) {
+					if (leftStartingOct) lastLap = true;
+				}
+				else {
+					leftStartingOct = true;
+					if (lastLap) loop = false; //ends loop if its passed all the way past the starting octant
+				}
+				float etr = abs(b2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x + 1, ellipse[index].y + 1), ej), 2) - b2 * a2);
+				float et = abs(b2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y + 1), ei), 2) + a2 * pow(dot(vec2(ellipse[index].x, ellipse[index].y + 1), ej), 2) - b2 * a2); //Finally didn't have to replace this one
+				if (et < etr) dir = "t"; // I should really replace these with enums. But whatevs
+				else dir = "tr";
+			} //Finally done
+			cout << "Dir:" << dir << endl;
+
+			if (dir == "tr")ellipse[index+1] = vec2(ellipse[index].x + 1, ellipse[index].y + 1); //should refactor
+			if (dir == "t")ellipse[index+1] = vec2(ellipse[index].x, ellipse[index].y + 1);
+			if (dir == "tl")ellipse[index+1] = vec2(ellipse[index].x - 1, ellipse[index].y + 1);
+			if (dir == "l")ellipse[index+1] = vec2(ellipse[index].x - 1, ellipse[index].y);
+			if (dir == "bl")ellipse[index+1] = vec2(ellipse[index].x - 1, ellipse[index].y - 1);
+			if (dir == "b")ellipse[index+1] = vec2(ellipse[index].x, ellipse[index].y - 1);
+			if (dir == "br")ellipse[index+1] = vec2(ellipse[index].x + 1, ellipse[index].y - 1);
+			if (dir == "r")ellipse[index+1] = vec2(ellipse[index].x + 1, ellipse[index].y);
+			cout << endl;
 			index++;
-			if (dir == "tr")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y + 1); //should refactor
-			if (dir == "t")ellipse[i] = vec2(ellipse[i - 1].x, ellipse[i - 1].y + 1);
-			if (dir == "tl")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y + 1);
-			if (dir == "l")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y);
-			if (dir == "bl")ellipse[i] = vec2(ellipse[i - 1].x - 1, ellipse[i - 1].y - 1);
-			if (dir == "b")ellipse[i] = vec2(ellipse[i - 1].x, ellipse[i - 1].y - 1);
-			if (dir == "br")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y - 1);
-			if (dir == "r")ellipse[i] = vec2(ellipse[i - 1].x + 1, ellipse[i - 1].y);
-	
+		}ellipse[500].x = 2;
+
+		ellipse.shrink_to_fit();
+		for (short i = 0; i < ellipse.size(); i++) { // go ahead and place it in normalized coordinates
+
+			ellipse[i].x += vertices[0].x;
+			ellipse[i].y += vertices[0].y;
 		}
 
+		for (vec2 v : ellipse) { // draw to framebuffer
+			fb[v.x][v.y] = fillColor;
 
+		}
 
-		
-
-
-
-
-
-
-		
 	}
 
 	void drawOutlineKennedy(Vertex vertices[3]) {
@@ -351,9 +526,10 @@ public:
 
 int main(){
 
-	EllipseRasta test = EllipseRasta(256, 256);
-	test.drawOutlineKennedy(vertices);
-	test.fill(vertices[0].x, vertices[0].y);
+	EllipseRasta test = EllipseRasta(512, 512);
+	test.drawOutlineZingl(vertices);
+	//test.drawOutlineKennedy(vertices);
+	//test.fill(vertices[0].x, vertices[0].y);
 	test.write("results.bmp");
 
 	
